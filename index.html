@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Walk: Long vs Short Derivatives</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans min-h-screen p-8">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-blue-400">Random Walk Derivative Simulator</h1>
+            <p class="text-gray-400 mt-2">Observe how Long and Short positions perform when the underlying asset follows a random walk.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <!-- Controls -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 col-span-1 md:col-span-1">
+                <h2 class="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">Parameters</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-1">Time Horizon (Days)</label>
+                    <input type="number" id="days" value="50" class="w-full bg-gray-700 text-white rounded p-2 border border-gray-600 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-1">Daily Volatility ($)</label>
+                    <input type="number" id="volatility" value="5" class="w-full bg-gray-700 text-white rounded p-2 border border-gray-600 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm text-gray-400 mb-1">Position Size (Shares)</label>
+                    <input type="number" id="shares" value="10" class="w-full bg-gray-700 text-white rounded p-2 border border-gray-600 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div class="space-y-3">
+                    <button onclick="runRandomWalk()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded transition duration-200">
+                        🎲 Generate Random Walk
+                    </button>
+                    <button onclick="resetSimulation()" class="w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded transition duration-200 mt-4">
+                        🔄 Reset Chart
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 col-span-1 md:col-span-3 grid grid-cols-3 gap-4 text-center items-center">
+                <div class="bg-gray-700 p-4 rounded">
+                    <p class="text-sm text-gray-400">Final Stock Price</p>
+                    <p id="finalPriceDisplay" class="text-3xl font-bold text-white">$100</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded border-b-4 border-blue-500">
+                    <p class="text-sm text-gray-400">Final LONG P&L</p>
+                    <p id="longPnlDisplay" class="text-3xl font-bold text-blue-400">$0</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded border-b-4 border-purple-500">
+                    <p class="text-sm text-gray-400">Final SHORT P&L</p>
+                    <p id="shortPnlDisplay" class="text-3xl font-bold text-purple-400">$0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+            <canvas id="marketChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const initialPrice = 100;
+        
+        let labels = [0];
+        let prices = [initialPrice];
+        let longPnl = [0];
+        let shortPnl = [0];
+
+        const ctx = document.getElementById('marketChart').getContext('2d');
+        const marketChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Stock Price ($)',
+                        data: prices,
+                        borderColor: '#ffffff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'LONG P&L ($)',
+                        data: longPnl,
+                        borderColor: '#3b82f6', // blue-500
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.1,
+                        yAxisID: 'y1'
+                    },
+                    {
+                        label: 'SHORT P&L ($)',
+                        data: shortPnl,
+                        borderColor: '#a855f7', // purple-500
+                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Time (Days)', color: '#9ca3af' },
+                        grid: { color: '#374151' },
+                        ticks: { color: '#9ca3af' }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Stock Price ($)', color: '#ffffff' },
+                        grid: { color: '#374151' },
+                        ticks: { color: '#ffffff' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'Profit / Loss ($)', color: '#9ca3af' },
+                        grid: { drawOnChartArea: false }, 
+                        ticks: { color: '#9ca3af' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#ffffff' } }
+                }
+            }
+        });
+
+        function runRandomWalk() {
+            const numDays = parseInt(document.getElementById('days').value) || 50;
+            const volatility = parseFloat(document.getElementById('volatility').value) || 5;
+            const shares = parseInt(document.getElementById('shares').value) || 10;
+
+            // Reset arrays
+            labels.length = 0;
+            prices.length = 0;
+            longPnl.length = 0;
+            shortPnl.length = 0;
+
+            labels.push(0);
+            prices.push(initialPrice);
+            longPnl.push(0);
+            shortPnl.push(0);
+
+            let currentPrice = initialPrice;
+
+            for (let day = 1; day <= numDays; day++) {
+                // 50% chance to go up, 50% chance to go down
+                const priceChange = Math.random() >= 0.5 ? volatility : -volatility;
+                currentPrice += priceChange;
+                
+                // Prevent price from dropping below 0
+                if (currentPrice < 0) currentPrice = 0;
+
+                const currentLongPnl = (currentPrice - initialPrice) * shares;
+                const currentShortPnl = (initialPrice - currentPrice) * shares;
+
+                labels.push(day);
+                prices.push(currentPrice);
+                longPnl.push(currentLongPnl);
+                shortPnl.push(currentShortPnl);
+            }
+
+            // Update UI Stats with the final day's data
+            const finalPrice = prices[prices.length - 1];
+            const finalLong = longPnl[longPnl.length - 1];
+            const finalShort = shortPnl[shortPnl.length - 1];
+
+            document.getElementById('finalPriceDisplay').innerText = `$${finalPrice.toFixed(2)}`;
+            document.getElementById('longPnlDisplay').innerText = `$${finalLong.toFixed(2)}`;
+            document.getElementById('shortPnlDisplay').innerText = `$${finalShort.toFixed(2)}`;
+            
+            document.getElementById('longPnlDisplay').className = finalLong >= 0 ? "text-3xl font-bold text-green-400" : "text-3xl font-bold text-red-400";
+            document.getElementById('shortPnlDisplay').className = finalShort >= 0 ? "text-3xl font-bold text-green-400" : "text-3xl font-bold text-red-400";
+
+            marketChart.update();
+        }
+
+        function resetSimulation() {
+            labels.length = 0;
+            prices.length = 0;
+            longPnl.length = 0;
+            shortPnl.length = 0;
+
+            labels.push(0);
+            prices.push(initialPrice);
+            longPnl.push(0);
+            shortPnl.push(0);
+
+            document.getElementById('finalPriceDisplay').innerText = `$${initialPrice}`;
+            document.getElementById('longPnlDisplay').innerText = `$0`;
+            document.getElementById('shortPnlDisplay').innerText = `$0`;
+            document.getElementById('longPnlDisplay').className = "text-3xl font-bold text-blue-400";
+            document.getElementById('shortPnlDisplay').className = "text-3xl font-bold text-purple-400";
+
+            marketChart.update();
+        }
+    </script>
+</body>
+</html>
